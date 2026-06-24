@@ -1,0 +1,1318 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <title>Philly Roll 3D Runner</title>
+  <style>
+    :root {
+      --safe-top: env(safe-area-inset-top, 0px);
+      --safe-right: env(safe-area-inset-right, 0px);
+      --safe-bottom: env(safe-area-inset-bottom, 0px);
+      --safe-left: env(safe-area-inset-left, 0px);
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body {
+      margin: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      overscroll-behavior: none;
+      touch-action: none;
+      -webkit-user-select: none;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+      background: #05060d;
+      color: #fff4d8;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    }
+
+    body {
+      position: fixed;
+      inset: 0;
+    }
+
+    #game {
+      display: block;
+      width: 100vw;
+      height: 100dvh;
+      touch-action: none;
+      background: #05060d;
+    }
+
+    .hud {
+      position: fixed;
+      left: max(12px, var(--safe-left));
+      right: max(12px, var(--safe-right));
+      top: max(10px, var(--safe-top));
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      align-items: start;
+      gap: 8px;
+      z-index: 5;
+      pointer-events: none;
+      text-shadow: 2px 2px 0 #000;
+      font-weight: 900;
+    }
+
+    .hud .left { text-align: left; }
+    .hud .center { text-align: center; color: #9cff42; }
+    .hud .right { text-align: right; }
+    .hud .score { font-size: clamp(15px, 4vw, 22px); }
+    .hud .small { margin-top: 4px; font-size: clamp(11px, 3vw, 14px); color: rgba(255,255,255,.76); }
+
+    .hearts {
+      display: flex;
+      gap: 4px;
+      margin-top: 4px;
+      flex-wrap: wrap;
+    }
+
+    .heart {
+      width: clamp(14px, 4.2vw, 20px);
+      height: clamp(14px, 4.2vw, 20px);
+      border-radius: 4px;
+      background: #3f1515;
+      border: 2px solid rgba(255,255,255,.16);
+      box-shadow: inset 0 -4px rgba(0,0,0,.28);
+    }
+    .heart.full { background: #ef3f2f; }
+
+    .hint {
+      position: fixed;
+      left: max(10px, var(--safe-left));
+      right: max(10px, var(--safe-right));
+      bottom: max(12px, var(--safe-bottom));
+      z-index: 5;
+      text-align: center;
+      pointer-events: none;
+      font-size: clamp(11px, 3.15vw, 14px);
+      color: rgba(255,255,255,.78);
+      text-shadow: 2px 2px 0 #000;
+    }
+
+    .tiltMeter {
+      position: fixed;
+      left: 50%;
+      bottom: max(42px, calc(var(--safe-bottom) + 42px));
+      transform: translateX(-50%);
+      width: min(72vw, 360px);
+      height: 16px;
+      border: 2px solid rgba(255,255,255,.35);
+      border-radius: 999px;
+      background: rgba(0,0,0,.38);
+      box-shadow: inset 0 0 16px rgba(0,0,0,.75);
+      pointer-events: none;
+      z-index: 5;
+    }
+
+    .tiltMeter span {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: 30px;
+      height: 30px;
+      border-radius: 50%;
+      transform: translate(-50%, -50%);
+      background: radial-gradient(circle at 35% 30%, #f4ffdb, #94ff40 56%, #2e7715);
+      box-shadow: 0 0 20px rgba(148,255,64,.82);
+    }
+
+    .overlay {
+      position: fixed;
+      inset: 0;
+      padding:
+        max(18px, var(--safe-top))
+        max(16px, var(--safe-right))
+        max(18px, var(--safe-bottom))
+        max(16px, var(--safe-left));
+      display: grid;
+      place-items: center;
+      z-index: 20;
+      background: radial-gradient(circle at 50% 25%, rgba(45,76,108,.35), rgba(0,0,0,.62));
+    }
+
+    .panel {
+      width: min(92vw, 590px);
+      border: 2px solid rgba(255,255,255,.34);
+      border-radius: 24px;
+      background: rgba(5,7,16,.86);
+      box-shadow: 0 22px 90px rgba(0,0,0,.62), inset 0 0 0 1px rgba(255,255,255,.08);
+      backdrop-filter: blur(10px);
+      padding: 20px;
+      text-align: center;
+    }
+
+    .panel h1 {
+      margin: 0 0 6px;
+      font-size: clamp(32px, 8vw, 60px);
+      line-height: .9;
+      letter-spacing: -2px;
+      color: #fff0b7;
+      text-shadow: 5px 5px 0 #000;
+    }
+
+    .panel h2 {
+      margin: 0 0 12px;
+      font-size: clamp(16px, 4.8vw, 27px);
+      color: #94ff40;
+      text-shadow: 3px 3px 0 #000;
+    }
+
+    .panel p {
+      margin: 10px 0;
+      font-size: clamp(13px, 3.55vw, 16px);
+      line-height: 1.36;
+      color: #e0d7bd;
+    }
+
+    .panel .mini {
+      color: rgba(255,255,255,.72);
+      font-size: clamp(11px, 3.1vw, 13px);
+    }
+
+    .panel button {
+      width: 100%;
+      min-height: 58px;
+      margin-top: 14px;
+      border: 0;
+      border-radius: 17px;
+      color: white;
+      background: linear-gradient(#3ac95a, #19732d);
+      box-shadow: inset 0 -8px rgba(0,0,0,.28), 0 8px 0 #082713;
+      font: 900 clamp(16px, 4.6vw, 22px) ui-monospace, monospace;
+      touch-action: manipulation;
+    }
+
+    .panel button:active {
+      transform: translateY(4px);
+      box-shadow: inset 0 -5px rgba(0,0,0,.28), 0 4px 0 #082713;
+    }
+
+    .hidden { display: none !important; }
+
+    .loading {
+      position: fixed;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      z-index: 30;
+      background: #05060d;
+      color: #fff0b7;
+      font-weight: 900;
+      text-shadow: 3px 3px #000;
+    }
+
+    @media (orientation: landscape) and (max-height: 520px) {
+      .hint { font-size: 11px; bottom: max(6px, var(--safe-bottom)); }
+      .tiltMeter {
+        bottom: max(27px, calc(var(--safe-bottom) + 27px));
+        transform: translateX(-50%) scale(.82);
+      }
+      .panel { width: min(86vw, 660px); padding: 14px; }
+      .panel p { margin: 6px 0; }
+      .panel button { min-height: 48px; }
+    }
+  </style>
+</head>
+
+<body>
+  <canvas id="game" aria-label="Philly Roll 3D Runner"></canvas>
+
+  <div class="loading" id="loading">Загрузка 3D...</div>
+
+  <div class="hud" id="hud">
+    <div class="left">
+      <div class="score" id="score">SCORE 0</div>
+      <div class="hearts" id="hearts"></div>
+    </div>
+    <div class="center">
+      <div class="score" id="levelName">3D RUN</div>
+      <div class="small" id="message">наклон ←/→</div>
+    </div>
+    <div class="right">
+      <div class="score" id="high">HI 0</div>
+      <div class="small" id="debug">iPhone/Android</div>
+    </div>
+  </div>
+
+  <div class="tiltMeter"><span id="tiltDot"></span></div>
+  <div class="hint">Наклон ←/→ — смещение · тап/удержание — броски васаби · на ПК: A/D и Space</div>
+
+  <div class="overlay" id="startOverlay">
+    <div class="panel">
+      <h1>PHILLY ROLL</h1>
+      <h2>SUBWAY-STYLE 3D RUNNER</h2>
+      <p>Это переписанная версия на настоящем WebGL/Three.js: камера сзади, 3D-дорога, 3D-ролл, крабы и инспекторы впереди.</p>
+      <p>Ролл бежит сам. Наклоняй телефон влево/вправо, а тапом или удержанием бросай васаби.</p>
+      <p>Крабы оставляют кучки, а в них иногда лежат хилки для восстановления HP.</p>
+      <button id="startBtn">START / ВКЛЮЧИТЬ НАКЛОН</button>
+      <p class="mini" id="gyroNote">Для iPhone нужен HTTPS — GitHub Pages подходит. При запуске Safari попросит разрешение на движение.</p>
+    </div>
+  </div>
+
+  <div class="overlay hidden" id="gameOverOverlay">
+    <div class="panel">
+      <h1>GAME OVER</h1>
+      <h2 id="finalScore">SCORE 0</h2>
+      <p>Наклон будет заново откалиброван под текущее положение телефона.</p>
+      <button id="restartBtn">ЕЩЁ РАЗ</button>
+    </div>
+  </div>
+
+<script type="module">
+  import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js';
+
+  const canvas = document.getElementById('game');
+  const loading = document.getElementById('loading');
+  const startOverlay = document.getElementById('startOverlay');
+  const gameOverOverlay = document.getElementById('gameOverOverlay');
+  const startBtn = document.getElementById('startBtn');
+  const restartBtn = document.getElementById('restartBtn');
+  const gyroNote = document.getElementById('gyroNote');
+  const scoreEl = document.getElementById('score');
+  const highEl = document.getElementById('high');
+  const heartsEl = document.getElementById('hearts');
+  const levelNameEl = document.getElementById('levelName');
+  const messageEl = document.getElementById('message');
+  const finalScoreEl = document.getElementById('finalScore');
+  const debugEl = document.getElementById('debug');
+  const tiltDot = document.getElementById('tiltDot');
+
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  const rand = (a, b) => a + Math.random() * (b - a);
+  const lerp = (a, b, t) => a + (b - a) * t;
+  const now = () => performance.now();
+
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x070914);
+  scene.fog = new THREE.Fog(0x070914, 24, 76);
+
+  const camera = new THREE.PerspectiveCamera(62, 1, 0.1, 180);
+  const renderer = new THREE.WebGLRenderer({
+    canvas,
+    antialias: true,
+    alpha: false,
+    powerPreference: 'high-performance'
+  });
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+  const isTouchDevice = matchMedia('(pointer: coarse)').matches || navigator.maxTouchPoints > 0;
+  let cssW = 360;
+  let cssH = 640;
+
+  function resize() {
+    const vv = window.visualViewport;
+    cssW = Math.max(260, Math.floor(vv ? vv.width : window.innerWidth));
+    cssH = Math.max(360, Math.floor(vv ? vv.height : window.innerHeight));
+
+    let dpr = window.devicePixelRatio || 1;
+    dpr = Math.min(dpr, isTouchDevice ? 1.65 : 2.0);
+
+    renderer.setPixelRatio(dpr);
+    renderer.setSize(cssW, cssH, false);
+
+    camera.aspect = cssW / cssH;
+    camera.fov = cssH >= cssW ? 64 : 54;
+    camera.updateProjectionMatrix();
+
+    debugEl.textContent = `${cssW}×${cssH}`;
+  }
+
+  window.addEventListener('resize', resize, { passive: true });
+  window.addEventListener('orientationchange', () => setTimeout(resize, 250), { passive: true });
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener('resize', resize, { passive: true });
+    window.visualViewport.addEventListener('scroll', resize, { passive: true });
+  }
+
+  resize();
+
+  // ---------- Materials ----------
+  const mat = {
+    nori: new THREE.MeshStandardMaterial({ color: 0x12351a, roughness: 0.7, metalness: 0.0 }),
+    noriDark: new THREE.MeshStandardMaterial({ color: 0x071108, roughness: 0.8 }),
+    rice: new THREE.MeshStandardMaterial({ color: 0xfff4dc, roughness: 0.86 }),
+    rice2: new THREE.MeshStandardMaterial({ color: 0xf0e5cd, roughness: 0.9 }),
+    salmon: new THREE.MeshStandardMaterial({ color: 0xff7d36, roughness: 0.6 }),
+    cream: new THREE.MeshStandardMaterial({ color: 0xfff2c8, roughness: 0.7 }),
+    cucumber: new THREE.MeshStandardMaterial({ color: 0x95df50, roughness: 0.6 }),
+    glove: new THREE.MeshStandardMaterial({ color: 0xfff1d6, roughness: 0.7 }),
+    skin: new THREE.MeshStandardMaterial({ color: 0xd77b28, roughness: 0.65 }),
+    wasabi: new THREE.MeshStandardMaterial({ color: 0x93ff3c, emissive: 0x2d7b11, emissiveIntensity: 0.32, roughness: 0.45 }),
+    crab: new THREE.MeshStandardMaterial({ color: 0xdb3f1f, roughness: 0.62 }),
+    crabLight: new THREE.MeshStandardMaterial({ color: 0xff7b2a, roughness: 0.55 }),
+    crabDark: new THREE.MeshStandardMaterial({ color: 0x772016, roughness: 0.75 }),
+    inspectorJacket: new THREE.MeshStandardMaterial({ color: 0x6b7c90, roughness: 0.75 }),
+    inspectorVest: new THREE.MeshStandardMaterial({ color: 0x225ca8, roughness: 0.68 }),
+    chiefVest: new THREE.MeshStandardMaterial({ color: 0x1f3c82, roughness: 0.68 }),
+    paper: new THREE.MeshStandardMaterial({ color: 0xf7f0d6, roughness: 0.9 }),
+    head: new THREE.MeshStandardMaterial({ color: 0xeebb84, roughness: 0.7 }),
+    poop: new THREE.MeshStandardMaterial({ color: 0x5b3115, roughness: 0.95 }),
+    heal: new THREE.MeshStandardMaterial({ color: 0xff80b6, emissive: 0x7b1838, emissiveIntensity: 0.18, roughness: 0.45 }),
+    black: new THREE.MeshStandardMaterial({ color: 0x090a0d, roughness: 0.8 }),
+    white: new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.7 })
+  };
+
+  const levels = [
+    { name: 'SUSHI SPEEDWAY', ground: 0x25341b, side: 0x56321a, fog: 0x17243c, sky: 0x0c1020, enemyRate: .74, spawn: 1.95, scenery: 'sushi' },
+    { name: 'LAVA CAVE', ground: 0x342112, side: 0x631d11, fog: 0x401111, sky: 0x120a13, enemyRate: .82, spawn: 1.84, scenery: 'lava' },
+    { name: 'COLD STORAGE', ground: 0x152b42, side: 0x0f213b, fog: 0x173a5a, sky: 0x081020, enemyRate: .90, spawn: 1.73, scenery: 'cold' },
+    { name: 'SANITARY RAID', ground: 0x303037, side: 0x20212a, fog: 0x303750, sky: 0x111722, enemyRate: .98, spawn: 1.64, scenery: 'raid' },
+    { name: 'FINAL INSPECTION', ground: 0x2a2d35, side: 0x171922, fog: 0x3f3d32, sky: 0x0e1018, enemyRate: 1.05, spawn: 1.56, scenery: 'final' }
+  ];
+
+  // ---------- Lights ----------
+  scene.add(new THREE.HemisphereLight(0xcfe7ff, 0x2b160b, 1.45));
+
+  const sun = new THREE.DirectionalLight(0xffffff, 2.15);
+  sun.position.set(-4, 10, 6);
+  sun.castShadow = true;
+  sun.shadow.mapSize.width = 1024;
+  sun.shadow.mapSize.height = 1024;
+  sun.shadow.camera.near = 1;
+  sun.shadow.camera.far = 50;
+  sun.shadow.camera.left = -12;
+  sun.shadow.camera.right = 12;
+  sun.shadow.camera.top = 12;
+  sun.shadow.camera.bottom = -12;
+  scene.add(sun);
+
+  const greenLight = new THREE.PointLight(0x91ff40, 1.3, 16);
+  greenLight.position.set(0, 3, 2);
+  scene.add(greenLight);
+
+  // ---------- Helpers ----------
+  function mesh(geometry, material, cast = true, receive = false) {
+    const m = new THREE.Mesh(geometry, material);
+    m.castShadow = cast;
+    m.receiveShadow = receive;
+    return m;
+  }
+
+  function box(w, h, d, material, cast = true, receive = false) {
+    return mesh(new THREE.BoxGeometry(w, h, d), material, cast, receive);
+  }
+
+  function sphere(r, material, segments = 18) {
+    return mesh(new THREE.SphereGeometry(r, segments, segments), material);
+  }
+
+  function cyl(r1, r2, h, material, segments = 32) {
+    return mesh(new THREE.CylinderGeometry(r1, r2, h, segments), material);
+  }
+
+  // ---------- 3D world ----------
+  const world = new THREE.Group();
+  scene.add(world);
+
+  const roadGroup = new THREE.Group();
+  const sideGroup = new THREE.Group();
+  const sceneryGroup = new THREE.Group();
+  const enemyGroup = new THREE.Group();
+  const shotGroup = new THREE.Group();
+  const itemGroup = new THREE.Group();
+  world.add(roadGroup, sideGroup, sceneryGroup, enemyGroup, shotGroup, itemGroup);
+
+  const roadSegments = [];
+  const sideSegments = [];
+  const SEG_LEN = 16;
+  const SEG_COUNT = 10;
+  const ROAD_W = 7.2;
+  const BOUNDS = 3.25;
+
+  function makeRoad() {
+    roadGroup.clear();
+    sideGroup.clear();
+    roadSegments.length = 0;
+    sideSegments.length = 0;
+
+    for (let i = 0; i < SEG_COUNT; i++) {
+      const z = -i * SEG_LEN;
+      const road = box(ROAD_W, 0.24, SEG_LEN, new THREE.MeshStandardMaterial({ color: levels[0].ground, roughness: .88 }), false, true);
+      road.position.set(0, -0.12, z);
+      road.receiveShadow = true;
+      road.userData.kind = 'road';
+      roadGroup.add(road);
+      roadSegments.push(road);
+
+      for (const side of [-1, 1]) {
+        const s = box(16, 0.2, SEG_LEN, new THREE.MeshStandardMaterial({ color: levels[0].side, roughness: .96 }), false, true);
+        s.position.set(side * (ROAD_W/2 + 8), -0.18, z);
+        s.receiveShadow = true;
+        sideGroup.add(s);
+        sideSegments.push(s);
+      }
+
+      // Lane marks
+      for (const x of [-ROAD_W/6, ROAD_W/6]) {
+        const line = box(0.05, 0.015, SEG_LEN * .58, new THREE.MeshStandardMaterial({ color: 0xfff0a7, emissive: 0x332300, emissiveIntensity: .18 }), false, false);
+        line.position.set(x, 0.03, z);
+        roadGroup.add(line);
+        roadSegments.push(line);
+      }
+    }
+  }
+
+  makeRoad();
+
+  const scenery = [];
+  function createSceneryObject(type, side) {
+    const g = new THREE.Group();
+
+    if (type === 'lava') {
+      const base = cyl(.35, .5, 1.6, new THREE.MeshStandardMaterial({ color: 0x41140d, roughness: .8 }), 12);
+      base.position.y = .8;
+      g.add(base);
+      const flame = sphere(.32, new THREE.MeshStandardMaterial({ color: 0xff6d1e, emissive: 0xff3b0c, emissiveIntensity: 1.15 }), 14);
+      flame.scale.set(.8, 1.4, .8);
+      flame.position.y = 1.85;
+      g.add(flame);
+      g.userData.spin = true;
+    } else if (type === 'cold') {
+      const crate = box(1.3, 1.1, 1.3, new THREE.MeshStandardMaterial({ color: 0x86b7cf, roughness: .75 }), true, true);
+      crate.position.y = .55;
+      g.add(crate);
+      const top = box(1.38, .12, 1.38, new THREE.MeshStandardMaterial({ color: 0xd9f6ff, roughness: .7 }), true, false);
+      top.position.y = 1.15;
+      g.add(top);
+    } else if (type === 'raid' || type === 'final') {
+      const sign = box(1.35, .7, .12, new THREE.MeshStandardMaterial({ color: 0xf7f0d6, roughness: .8 }), true, false);
+      sign.position.y = 1.65;
+      g.add(sign);
+      const post = box(.12, 1.45, .12, new THREE.MeshStandardMaterial({ color: 0x4a4a55, roughness: .7 }), true, true);
+      post.position.y = .75;
+      g.add(post);
+      const letters = ['Р', 'П', 'Н'];
+      for (let i = 0; i < 3; i++) {
+        const px = -0.38 + i * .38;
+        const block = box(.18, .18, .02, mat.inspectorVest, false, false);
+        block.position.set(px, 1.66, -.075);
+        g.add(block);
+      }
+    } else {
+      const boxObj = box(1.25, .8, 1.25, new THREE.MeshStandardMaterial({ color: 0x8d4e22, roughness: .8 }), true, true);
+      boxObj.position.y = .4;
+      g.add(boxObj);
+      const label = box(.9, .22, .03, new THREE.MeshStandardMaterial({ color: 0xfff0bd, roughness: .8 }), true, false);
+      label.position.set(0, .55, -.64);
+      g.add(label);
+    }
+
+    g.position.x = side * rand(5.2, 7.4);
+    g.position.z = rand(-16, -150);
+    g.userData.side = side;
+    g.userData.type = type;
+    return g;
+  }
+
+  function resetScenery() {
+    sceneryGroup.clear();
+    scenery.length = 0;
+    const type = levels[0].scenery;
+    for (let i = 0; i < 28; i++) {
+      const s = createSceneryObject(type, Math.random() < .5 ? -1 : 1);
+      s.position.z = -rand(8, 150);
+      sceneryGroup.add(s);
+      scenery.push(s);
+    }
+  }
+
+  resetScenery();
+
+  function setLevelVisuals() {
+    const level = levels[state.levelIndex % levels.length];
+    scene.fog.color.setHex(level.fog);
+    scene.background.setHex(level.sky);
+
+    for (const o of roadGroup.children) {
+      if (o.userData.kind === 'road') o.material.color.setHex(level.ground);
+    }
+    for (const o of sideGroup.children) o.material.color.setHex(level.side);
+
+    // Refresh far scenery type slowly.
+    for (const s of scenery) {
+      if (s.position.z > 8) continue;
+      if (Math.random() < .15) {
+        sceneryGroup.remove(s);
+        const next = createSceneryObject(level.scenery, s.userData.side || (Math.random() < .5 ? -1 : 1));
+        next.position.z = s.position.z;
+        sceneryGroup.add(next);
+        const idx = scenery.indexOf(s);
+        if (idx >= 0) scenery[idx] = next;
+      }
+    }
+  }
+
+  // ---------- Characters ----------
+  function createRollPlayer() {
+    const g = new THREE.Group();
+
+    const body = cyl(.82, .82, .86, mat.nori, 40);
+    body.rotation.x = Math.PI / 2;
+    body.scale.y = 1.05;
+    body.position.y = 1.02;
+    g.add(body);
+
+    const riceFront = cyl(.64, .64, .09, mat.rice, 40);
+    riceFront.rotation.x = Math.PI / 2;
+    riceFront.position.set(0, 1.02, -.46);
+    g.add(riceFront);
+
+    const riceBack = cyl(.64, .64, .09, mat.rice2, 40);
+    riceBack.rotation.x = Math.PI / 2;
+    riceBack.position.set(0, 1.02, .46);
+    g.add(riceBack);
+
+    const salmon = sphere(.18, mat.salmon, 16);
+    salmon.scale.set(1.15, .5, .8);
+    salmon.position.set(-.12, 1.18, -.54);
+    g.add(salmon);
+
+    const cream = sphere(.16, mat.cream, 16);
+    cream.scale.set(.8, 1.0, .6);
+    cream.position.set(-.31, .92, -.55);
+    g.add(cream);
+
+    const cucumber = sphere(.17, mat.cucumber, 16);
+    cucumber.scale.set(.75, 1.2, .65);
+    cucumber.position.set(.24, 1.00, -.55);
+    g.add(cucumber);
+
+    // face on front
+    for (const x of [-.24, .24]) {
+      const eye = sphere(.055, mat.black, 12);
+      eye.scale.set(1, 1.2, .35);
+      eye.position.set(x, 1.35, -.61);
+      g.add(eye);
+      const glow = sphere(.018, mat.white, 8);
+      glow.position.set(x - .015, 1.37, -.648);
+      g.add(glow);
+    }
+
+    // arms
+    const leftArm = cyl(.08, .08, .52, mat.skin, 12);
+    leftArm.rotation.z = Math.PI / 2.7;
+    leftArm.position.set(-.84, 1.02, -.05);
+    g.add(leftArm);
+
+    const rightArm = cyl(.08, .08, .52, mat.skin, 12);
+    rightArm.rotation.z = -Math.PI / 2.7;
+    rightArm.position.set(.84, 1.02, -.05);
+    rightArm.userData.throwArm = true;
+    g.add(rightArm);
+
+    const leftFist = sphere(.14, mat.glove, 14);
+    leftFist.position.set(-1.08, .92, -.05);
+    g.add(leftFist);
+
+    const rightFist = sphere(.14, mat.glove, 14);
+    rightFist.position.set(1.08, .92, -.05);
+    rightFist.userData.throwFist = true;
+    g.add(rightFist);
+
+    // legs
+    for (const x of [-.35, .35]) {
+      const leg = cyl(.08, .08, .45, mat.skin, 12);
+      leg.position.set(x, .38, .12);
+      g.add(leg);
+      const foot = sphere(.15, mat.glove, 12);
+      foot.scale.set(1.6, .55, 1.05);
+      foot.position.set(x, .16, -.12);
+      g.add(foot);
+    }
+
+    g.position.set(0, 0, 1.25);
+    g.scale.set(1.05, 1.05, 1.05);
+    return g;
+  }
+
+  const player = createRollPlayer();
+  player.traverse(o => {
+    if (o.isMesh) {
+      o.castShadow = true;
+      o.receiveShadow = true;
+    }
+  });
+  scene.add(player);
+
+  function createCrab() {
+    const g = new THREE.Group();
+
+    const body = sphere(.58, mat.crab, 22);
+    body.scale.set(1.25, .55, .82);
+    body.position.y = .65;
+    g.add(body);
+
+    const belly = sphere(.42, mat.crabLight, 18);
+    belly.scale.set(1.1, .28, .55);
+    belly.position.set(0, .64, -.38);
+    g.add(belly);
+
+    for (const side of [-1, 1]) {
+      for (let i = 0; i < 3; i++) {
+        const leg = cyl(.04, .04, .62, mat.crabDark, 8);
+        leg.rotation.z = side * Math.PI / 2.6;
+        leg.rotation.y = .25;
+        leg.position.set(side * (.42 + i*.13), .42 - i*.05, .08 + i*.16);
+        g.add(leg);
+      }
+
+      const arm = cyl(.055, .055, .6, mat.crabDark, 8);
+      arm.rotation.z = side * Math.PI / 2.35;
+      arm.position.set(side * .76, .76, -.18);
+      g.add(arm);
+
+      const claw = sphere(.22, mat.crab, 16);
+      claw.scale.set(1.15, .78, 1.0);
+      claw.position.set(side * 1.08, .86, -.34);
+      g.add(claw);
+
+      const tip = sphere(.12, mat.crabLight, 12);
+      tip.scale.set(1.25, .35, .9);
+      tip.position.set(side * 1.16, 1.05, -.45);
+      g.add(tip);
+    }
+
+    for (const x of [-.22, .22]) {
+      const eye = sphere(.08, mat.black, 12);
+      eye.position.set(x, .90, -.54);
+      g.add(eye);
+      const shine = sphere(.024, mat.white, 8);
+      shine.position.set(x-.02, .93, -.60);
+      g.add(shine);
+    }
+
+    g.scale.set(1, 1, 1);
+    g.userData.kind = 'crab';
+    g.userData.hp = 2;
+    g.userData.maxHp = 2;
+    g.userData.radius = .75;
+    return g;
+  }
+
+  function createInspector(chief = false) {
+    const g = new THREE.Group();
+
+    const jacket = box(.9, 1.0, .34, chief ? mat.inspectorJacket : mat.inspectorJacket);
+    jacket.position.y = 1.05;
+    g.add(jacket);
+
+    const vest = box(.58, .64, .37, chief ? mat.chiefVest : mat.inspectorVest);
+    vest.position.set(0, 1.04, -.03);
+    g.add(vest);
+
+    // RPN letters as white blocks
+    for (let i = 0; i < 3; i++) {
+      const letter = box(.11, .10, .025, mat.white, false, false);
+      letter.position.set(-.18 + i*.18, 1.12, -.225);
+      g.add(letter);
+    }
+
+    const head = sphere(.28, mat.head, 18);
+    head.scale.set(.86, 1.05, .86);
+    head.position.y = 1.78;
+    g.add(head);
+
+    const cap = cyl(.28, .28, .12, mat.black, 16);
+    cap.position.y = 2.08;
+    g.add(cap);
+
+    if (chief) {
+      const badge = box(.2, .08, .03, new THREE.MeshStandardMaterial({ color: 0xffd052, metalness: .25, roughness: .35 }), true, false);
+      badge.position.set(0, 2.16, -.08);
+      g.add(badge);
+    }
+
+    for (const x of [-.11, .11]) {
+      const eye = sphere(.04, mat.black, 8);
+      eye.position.set(x, 1.84, -.24);
+      g.add(eye);
+    }
+
+    for (const side of [-1, 1]) {
+      const arm = cyl(.055, .055, .62, mat.head, 10);
+      arm.rotation.z = side * .9;
+      arm.position.set(side * .55, 1.12, -.02);
+      g.add(arm);
+    }
+
+    const paper = box(.34, .42, .025, mat.paper, true, false);
+    paper.position.set(.78, 1.28, -.25);
+    paper.rotation.z = -.2;
+    g.add(paper);
+
+    for (const x of [-.23, .23]) {
+      const leg = cyl(.07, .07, .58, mat.black, 10);
+      leg.position.set(x, .40, .02);
+      g.add(leg);
+    }
+
+    g.userData.kind = chief ? 'chief' : 'inspector';
+    g.userData.hp = chief ? 5 : 3;
+    g.userData.maxHp = chief ? 5 : 3;
+    g.userData.radius = chief ? .75 : .62;
+    g.scale.set(chief ? 1.18 : 1.0, chief ? 1.18 : 1.0, chief ? 1.18 : 1.0);
+    return g;
+  }
+
+  function createPoop() {
+    const g = new THREE.Group();
+    const base = sphere(.32, mat.poop, 16);
+    base.scale.set(1.3, .45, .95);
+    base.position.y = .14;
+    g.add(base);
+    const mid = sphere(.23, mat.poop, 14);
+    mid.scale.set(1.05, .62, .85);
+    mid.position.y = .38;
+    g.add(mid);
+    const top = sphere(.14, mat.poop, 12);
+    top.scale.set(.78, .72, .72);
+    top.position.y = .58;
+    g.add(top);
+
+    const stinkMat = new THREE.MeshStandardMaterial({ color: 0x93ff3c, emissive: 0x2b7c12, emissiveIntensity: .35, transparent: true, opacity: .7 });
+    for (let i=0; i<3; i++) {
+      const stink = sphere(.045, stinkMat, 8);
+      stink.position.set(rand(-.3,.3), .78 + i*.18, rand(-.18,.18));
+      stink.userData.stink = true;
+      g.add(stink);
+    }
+    g.userData.life = 2.0;
+    return g;
+  }
+
+  function createHeal() {
+    const g = new THREE.Group();
+    const heart = sphere(.18, mat.heal, 16);
+    heart.scale.set(1.25, .9, .72);
+    heart.position.y = .45;
+    g.add(heart);
+    const crossV = box(.07, .34, .035, mat.white, false, false);
+    crossV.position.set(0, .45, -.14);
+    g.add(crossV);
+    const crossH = box(.25, .07, .035, mat.white, false, false);
+    crossH.position.set(0, .45, -.145);
+    g.add(crossH);
+    g.userData.life = 7.0;
+    g.userData.radius = .45;
+    return g;
+  }
+
+  function createWasabiShot() {
+    const g = new THREE.Group();
+    const s = sphere(.18, mat.wasabi, 18);
+    s.scale.set(1.15, .9, 1.0);
+    g.add(s);
+    const light = new THREE.PointLight(0x93ff3c, .7, 4);
+    light.position.set(0, 0, 0);
+    g.add(light);
+    g.userData.radius = .25;
+    g.userData.life = 1.8;
+    return g;
+  }
+
+  // ---------- State ----------
+  let state;
+  let fireHeld = false;
+  let lastFireT = 0;
+
+  const gyro = {
+    enabled: false,
+    calibrated: false,
+    neutral: 0,
+    raw: 0,
+    target: 0,
+    steer: 0,
+    samples: 0,
+    lastEventT: 0
+  };
+
+  function resetState() {
+    state = {
+      mode: 'title',
+      t: 0,
+      levelIndex: 0,
+      levelTime: 0,
+      score: 0,
+      high: Number(localStorage.getItem('philly3DHigh') || 0),
+      hp: 6,
+      maxHp: 6,
+      spawnT: 1.3,
+      speed: 12,
+      playerX: 0,
+      playerLean: 0,
+      message: '3D RUN',
+      messageT: 0
+    };
+
+    clearActors();
+    setLevelVisuals();
+    updateHUD();
+  }
+
+  function clearActors() {
+    for (const g of [...enemyGroup.children]) enemyGroup.remove(g);
+    for (const g of [...shotGroup.children]) shotGroup.remove(g);
+    for (const g of [...itemGroup.children]) itemGroup.remove(g);
+  }
+
+  resetState();
+
+  function startGame() {
+    resetState();
+    state.mode = 'playing';
+    state.message = levels[0].name;
+    state.messageT = 2.5;
+    gyro.calibrated = false;
+    gyro.samples = 0;
+    gyro.target = 0;
+    gyro.steer = 0;
+    fireHeld = false;
+    startOverlay.classList.add('hidden');
+    gameOverOverlay.classList.add('hidden');
+  }
+
+  function gameOver() {
+    state.mode = 'gameover';
+    fireHeld = false;
+    if (state.score > state.high) {
+      state.high = state.score;
+      localStorage.setItem('philly3DHigh', String(Math.floor(state.high)));
+    }
+    finalScoreEl.textContent = 'SCORE ' + Math.floor(state.score);
+    gameOverOverlay.classList.remove('hidden');
+  }
+
+  function getOrientationAngle() {
+    const so = screen.orientation;
+    if (so && Number.isFinite(so.angle)) return so.angle;
+    if (Number.isFinite(window.orientation)) return window.orientation;
+    return 0;
+  }
+
+  function lateralTiltFromEvent(e) {
+    const angle = getOrientationAngle();
+    const gamma = Number(e.gamma);
+    const beta = Number(e.beta);
+
+    if (Math.abs(angle) === 90 && Number.isFinite(beta)) return angle > 0 ? beta : -beta;
+    if (Math.abs(angle) === 180 && Number.isFinite(gamma)) return -gamma;
+    return Number.isFinite(gamma) ? gamma : 0;
+  }
+
+  async function requestGyroAndStart() {
+    try {
+      if (typeof DeviceOrientationEvent !== 'undefined' &&
+          typeof DeviceOrientationEvent.requestPermission === 'function') {
+        const res = await DeviceOrientationEvent.requestPermission();
+        if (res !== 'granted') {
+          gyroNote.textContent = 'Наклон не разрешён. На ПК можно тестировать A/D и Space.';
+          startGame();
+          return;
+        }
+      }
+
+      gyro.enabled = true;
+      window.removeEventListener('deviceorientation', onOrientation, true);
+      window.addEventListener('deviceorientation', onOrientation, true);
+      startGame();
+    } catch (err) {
+      gyroNote.textContent = 'Не удалось включить наклон. На ПК: A/D и Space.';
+      startGame();
+    }
+  }
+
+  function onOrientation(e) {
+    const lateral = lateralTiltFromEvent(e);
+    gyro.raw = lateral;
+    gyro.lastEventT = now();
+
+    if (!gyro.calibrated) {
+      gyro.samples++;
+      gyro.neutral = gyro.samples === 1 ? lateral : lerp(gyro.neutral, lateral, .24);
+      if (gyro.samples > 7) gyro.calibrated = true;
+    }
+
+    const diff = lateral - gyro.neutral;
+    const deadZone = .75;
+    const sensitivity = 6.2;
+    const mag = Math.max(0, Math.abs(diff) - deadZone);
+    gyro.target = clamp(Math.sign(diff) * mag / sensitivity, -1, 1);
+  }
+
+  function spawnEnemy() {
+    const levelNo = state.levelIndex;
+    const roll = Math.random();
+
+    let enemy;
+    if (levelNo >= 3 && roll > .84) enemy = createInspector(true);
+    else if (levelNo >= 1 && roll > .60) enemy = createInspector(false);
+    else enemy = createCrab();
+
+    enemy.position.set(rand(-BOUNDS, BOUNDS), 0, -76);
+    enemy.rotation.y = rand(-.20, .20);
+    enemy.userData.baseSpeed =
+      enemy.userData.kind === 'crab' ? rand(8.2, 10.5) :
+      enemy.userData.kind === 'chief' ? rand(7.3, 8.7) :
+      rand(7.6, 9.2);
+
+    enemy.userData.wobble = rand(0, 10);
+
+    enemy.traverse(o => {
+      if (o.isMesh) {
+        o.castShadow = true;
+        o.receiveShadow = true;
+      }
+    });
+
+    enemyGroup.add(enemy);
+  }
+
+  function shootWasabi() {
+    if (state.mode !== 'playing') return;
+    const t = now();
+    if (t - lastFireT < 95) return; // чаще, чем в прошлой версии.
+    lastFireT = t;
+
+    const shot = createWasabiShot();
+    shot.position.set(state.playerX, 1.25, .2);
+    shot.userData.vx = state.playerLean * 3.0;
+    shot.userData.vz = -38;
+    shot.userData.life = 1.6;
+    shotGroup.add(shot);
+
+    // Throw animation.
+    player.userData.throwT = .15;
+  }
+
+  function addPoopAndHeal(x, z) {
+    const poop = createPoop();
+    poop.position.set(x, 0.02, z);
+    itemGroup.add(poop);
+
+    // Хилка всегда появляется в кучке, чтобы её было понятно подбирать.
+    const heal = createHeal();
+    heal.position.set(clamp(x + rand(-.22, .22), -BOUNDS, BOUNDS), .12, z - .15);
+    itemGroup.add(heal);
+  }
+
+  function damageEnemy(enemy, amount = 1) {
+    enemy.userData.hp -= amount;
+    enemy.userData.hitT = .15;
+    enemy.scale.multiplyScalar(1.04);
+    state.score += 55;
+
+    if (enemy.userData.hp <= 0) {
+      if (enemy.userData.kind === 'crab') addPoopAndHeal(enemy.position.x, enemy.position.z);
+      state.score += enemy.userData.kind === 'crab' ? 220 : enemy.userData.kind === 'chief' ? 680 : 410;
+      enemyGroup.remove(enemy);
+    }
+  }
+
+  function hurtPlayer(amount = 1) {
+    if (state.invT > 0) return;
+    state.hp -= amount;
+    state.invT = .85;
+    state.message = '-HP';
+    state.messageT = .7;
+
+    greenLight.intensity = 2.4;
+    if (state.hp <= 0) {
+      state.hp = 0;
+      gameOver();
+    }
+  }
+
+  function collectHeal(heal) {
+    if (state.hp < state.maxHp) state.hp++;
+    state.score += 130;
+    itemGroup.remove(heal);
+    state.message = '+HP';
+    state.messageT = .75;
+  }
+
+  function updateHUD() {
+    scoreEl.textContent = 'SCORE ' + Math.floor(state.score);
+    highEl.textContent = 'HI ' + Math.floor(Math.max(state.high, state.score));
+    levelNameEl.textContent = 'LVL ' + (state.levelIndex + 1);
+    messageEl.textContent = state.messageT > 0 ? state.message : levels[state.levelIndex % levels.length].name;
+
+    heartsEl.innerHTML = '';
+    for (let i = 0; i < state.maxHp; i++) {
+      const h = document.createElement('span');
+      h.className = 'heart' + (i < state.hp ? ' full' : '');
+      heartsEl.appendChild(h);
+    }
+  }
+
+  function updateCamera(dt) {
+    const portrait = cssH >= cssW;
+    const targetCam = portrait
+      ? new THREE.Vector3(state.playerX * .34, 4.25, 8.35)
+      : new THREE.Vector3(state.playerX * .25, 3.45, 8.0);
+
+    camera.position.lerp(targetCam, .08);
+    camera.lookAt(state.playerX * .15, portrait ? 1.2 : 1.0, -9.5);
+  }
+
+  function updatePlayer(dt) {
+    gyro.steer = lerp(gyro.steer, gyro.target, .42);
+    let steer = gyro.steer;
+    if (keys.KeyA || keys.ArrowLeft) steer -= 1;
+    if (keys.KeyD || keys.ArrowRight) steer += 1;
+    steer = clamp(steer, -1, 1);
+
+    state.playerLean = lerp(state.playerLean, steer, .20);
+    state.playerX += steer * dt * 8.8; // чувствительное движение наклоном
+    state.playerX = clamp(state.playerX, -BOUNDS, BOUNDS);
+
+    player.position.x = state.playerX;
+    player.rotation.z = -state.playerLean * .18;
+    player.rotation.y = state.playerLean * .10;
+    player.position.y = Math.sin(state.t * 10) * .05;
+
+    if (player.userData.throwT) {
+      player.userData.throwT = Math.max(0, player.userData.throwT - dt);
+    }
+
+    for (const child of player.children) {
+      if (child.userData.throwArm) child.rotation.z = -Math.PI / 2.7 - (player.userData.throwT || 0) * 7;
+      if (child.userData.throwFist) child.position.y = .92 + (player.userData.throwT || 0) * 2.2;
+    }
+
+    if (tiltDot) {
+      const range = Math.min(cssW * .32, 160);
+      tiltDot.style.transform = `translate(calc(-50% + ${steer * range}px), -50%)`;
+    }
+
+    if (fireHeld || keys.Space) shootWasabi();
+  }
+
+  function updateWorld(dt) {
+    const level = levels[state.levelIndex % levels.length];
+
+    // Road speed grows slowly.
+    state.speed = 11.0 + Math.min(5.5, state.t / 30) + state.levelIndex * .65;
+
+    for (const seg of [...roadSegments, ...sideSegments]) {
+      seg.position.z += state.speed * dt;
+      if (seg.position.z > SEG_LEN) seg.position.z -= SEG_LEN * SEG_COUNT;
+    }
+
+    for (const s of scenery) {
+      s.position.z += state.speed * dt;
+      if (s.userData.spin) s.rotation.y += dt * .8;
+      if (s.position.z > 10) {
+        s.position.z = -rand(110, 160);
+        s.position.x = (Math.random() < .5 ? -1 : 1) * rand(5.2, 7.4);
+      }
+    }
+
+    state.spawnT -= dt;
+    if (state.spawnT <= 0) {
+      spawnEnemy();
+      // Difficulty and spawn get harder much more slowly than before.
+      const timePressure = Math.min(.30, state.t / 260);
+      const base = Math.max(1.08, level.spawn - timePressure);
+      state.spawnT = rand(base * .75, base * 1.32);
+    }
+
+    if (state.levelTime > 60) {
+      state.levelIndex++;
+      state.levelTime = 0;
+      state.message = levels[state.levelIndex % levels.length].name;
+      state.messageT = 2.4;
+      state.spawnT = Math.max(state.spawnT, 1.45);
+      setLevelVisuals();
+    }
+  }
+
+  function updateEnemies(dt) {
+    const level = levels[state.levelIndex % levels.length];
+
+    for (const enemy of [...enemyGroup.children]) {
+      enemy.userData.wobble += dt * 3.1;
+      enemy.position.z += enemy.userData.baseSpeed * level.enemyRate * dt;
+      enemy.position.x += Math.sin(enemy.userData.wobble) * dt * .22;
+      enemy.rotation.y = Math.sin(enemy.userData.wobble * .6) * .12;
+      enemy.position.x = clamp(enemy.position.x, -BOUNDS, BOUNDS);
+
+      if (enemy.userData.hitT) {
+        enemy.userData.hitT = Math.max(0, enemy.userData.hitT - dt);
+        enemy.rotation.z = Math.sin(state.t * 45) * .08;
+      } else {
+        enemy.rotation.z = 0;
+        enemy.scale.lerp(new THREE.Vector3(1,1,1), .12);
+      }
+
+      // Enemy reaches player
+      if (enemy.position.z > 1.0) {
+        if (Math.abs(enemy.position.x - state.playerX) < .92) {
+          hurtPlayer(enemy.userData.kind === 'chief' ? 2 : 1);
+        }
+        enemyGroup.remove(enemy);
+      }
+    }
+  }
+
+  function updateShots(dt) {
+    for (const shot of [...shotGroup.children]) {
+      shot.userData.life -= dt;
+      shot.position.z += shot.userData.vz * dt;
+      shot.position.x += shot.userData.vx * dt;
+      shot.rotation.x += dt * 10;
+      shot.rotation.y += dt * 8;
+
+      if (shot.userData.life <= 0 || shot.position.z < -82) {
+        shotGroup.remove(shot);
+        continue;
+      }
+
+      for (const enemy of [...enemyGroup.children]) {
+        const dx = shot.position.x - enemy.position.x;
+        const dy = shot.position.y - (enemy.userData.kind === 'crab' ? .7 : 1.25);
+        const dz = shot.position.z - enemy.position.z;
+        const r = shot.userData.radius + enemy.userData.radius;
+        if (dx*dx + dy*dy + dz*dz < r*r) {
+          shotGroup.remove(shot);
+          damageEnemy(enemy, 1);
+          break;
+        }
+      }
+    }
+  }
+
+  function updateItems(dt) {
+    for (const item of [...itemGroup.children]) {
+      item.position.z += state.speed * dt * .9;
+
+      if (item.userData.life !== undefined) {
+        item.userData.life -= dt;
+        if (item.userData.life <= 0) {
+          itemGroup.remove(item);
+          continue;
+        }
+      }
+
+      if (item.userData.radius) {
+        item.rotation.y += dt * 3;
+        item.position.y = .38 + Math.sin(state.t * 6 + item.position.x) * .06;
+
+        const dx = item.position.x - state.playerX;
+        const dz = item.position.z - 1.05;
+        if (dx*dx + dz*dz < .72 * .72) collectHeal(item);
+      }
+
+      for (const child of item.children) {
+        if (child.userData.stink) {
+          child.position.y += Math.sin(state.t * 5 + child.position.x) * dt * .08;
+        }
+      }
+
+      if (item.position.z > 8) itemGroup.remove(item);
+    }
+  }
+
+  function update(dt) {
+    if (state.mode !== 'playing') return;
+
+    state.t += dt;
+    state.levelTime += dt;
+    state.score += dt * 12 * (1 + state.levelIndex * .09);
+    state.messageT = Math.max(0, state.messageT - dt);
+    state.invT = Math.max(0, (state.invT || 0) - dt);
+
+    greenLight.intensity = lerp(greenLight.intensity, 1.3, .03);
+    greenLight.position.set(state.playerX, 2.4, 1.4);
+
+    updatePlayer(dt);
+    updateWorld(dt);
+    updateEnemies(dt);
+    updateShots(dt);
+    updateItems(dt);
+    updateCamera(dt);
+    updateHUD();
+
+    if (gyro.enabled && now() - gyro.lastEventT > 1700) {
+      messageEl.textContent = 'наклон не читается';
+    }
+  }
+
+  // ---------- Inputs ----------
+  function bindInputs() {
+    startBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      requestGyroAndStart();
+    });
+
+    restartBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      requestGyroAndStart();
+    });
+
+    canvas.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      if (state.mode === 'playing') {
+        fireHeld = true;
+        shootWasabi();
+        try { canvas.setPointerCapture(e.pointerId); } catch (_) {}
+      }
+    }, { passive: false });
+
+    const stopFire = (e) => {
+      e.preventDefault();
+      fireHeld = false;
+    };
+    canvas.addEventListener('pointerup', stopFire, { passive: false });
+    canvas.addEventListener('pointercancel', stopFire, { passive: false });
+    canvas.addEventListener('pointerleave', stopFire, { passive: false });
+
+    window.addEventListener('keydown', (e) => {
+      keys[e.code] = true;
+      if (e.code === 'Space') {
+        e.preventDefault();
+        fireHeld = true;
+        shootWasabi();
+      }
+      if (e.code === 'Enter' && state.mode !== 'playing') requestGyroAndStart();
+    }, { passive: false });
+
+    window.addEventListener('keyup', (e) => {
+      keys[e.code] = false;
+      if (e.code === 'Space') fireHeld = false;
+    });
+
+    document.addEventListener('touchmove', (e) => e.preventDefault(), { passive: false });
+    document.addEventListener('gesturestart', (e) => e.preventDefault(), { passive: false });
+    document.addEventListener('dblclick', (e) => e.preventDefault(), { passive: false });
+    document.addEventListener('contextmenu', (e) => e.preventDefault());
+    document.addEventListener('visibilitychange', () => { if (document.hidden) fireHeld = false; });
+  }
+
+  bindInputs();
+
+  // ---------- Main loop ----------
+  let last = now();
+  function animate(t) {
+    const dt = Math.min(.033, (t - last) / 1000 || 0);
+    last = t;
+
+    update(dt);
+
+    renderer.render(scene, camera);
+  }
+
+  camera.position.set(0, 4.25, 8.35);
+  camera.lookAt(0, 1.2, -9.5);
+  loading.classList.add('hidden');
+  renderer.setAnimationLoop(animate);
+</script>
+</body>
+</html>
